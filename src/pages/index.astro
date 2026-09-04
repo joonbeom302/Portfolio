@@ -46,17 +46,13 @@ const videoList = [
       <h1>🎬 윤서준 모음집</h1>
       <p>윤서준 화려하고 트렌디한 댄스 실력을 한 곳에서 감상하세요!</p>
     </header>
-    
 <!-- 영상 카드가 렌더링되는 비디오 그리드 -->
     <section class="video-grid">
       {videoList.map((video) => (
         <article class="video-card" data-video-src={video.videoUrl} data-title={video.title}>
           <div class="thumbnail-wrapper">
-            {video.thumbnail ? (
-              <img src={video.thumbnail} alt={video.title} class="thumbnail" />
-            ) : (
-              <div class="thumbnail-placeholder">▶ PLAY</div>
-            )}
+            <!-- 캔버스: 영상의 특정 프레임을 캡쳐해서 이미지로 그려주는 영역 -->
+            <canvas class="thumbnail-canvas" data-video-src={video.videoUrl}></canvas>
             <span class="play-overlay">▶</span>
           </div>
           <div class="video-info">
@@ -104,9 +100,46 @@ const videoList = [
   </main>
 </Layout>
 
-<!-- 클라이언트 사이드 인터랙션 스크립트 -->
+<!-- 클라이언트 사이드 스크립트 -->
 <script>
-  // DOM 요소 선택
+  // ==========================================
+  // 1. 영상 중간 프레임 자동 캡쳐 (썸네일 생성)
+  // ==========================================
+  const canvases = document.querySelectorAll('.thumbnail-canvas');
+
+  canvases.forEach((canvas) => {
+    const htmlCanvas = canvas as HTMLCanvasElement;
+    const videoSrc = htmlCanvas.getAttribute('data-video-src');
+
+    if (videoSrc) {
+      // 비가시적 임시 비디오 객체 생성
+      const tempVideo = document.createElement('video');
+      tempVideo.src = videoSrc;
+      tempVideo.crossOrigin = 'anonymous'; // CORS 방지
+      tempVideo.preload = 'metadata';
+
+      // 비디오 메타데이터 로드 완료 시
+      tempVideo.addEventListener('loadedmetadata', () => {
+        // 영상 길이의 중간 지점 계산 (예: 전체 10초면 5초 지점, 기본 2초 지점)
+        const captureTime = tempVideo.duration > 2 ? 2 : tempVideo.duration / 2;
+        tempVideo.currentTime = captureTime;
+      });
+
+      // 계산된 시간대의 프레임이 준비되었을 때 Canvas에 그리기
+      tempVideo.addEventListener('seeked', () => {
+        const ctx = htmlCanvas.getContext('2d');
+        if (ctx) {
+          htmlCanvas.width = tempVideo.videoWidth || 320;
+          htmlCanvas.height = tempVideo.videoHeight || 180;
+          ctx.drawImage(tempVideo, 0, 0, htmlCanvas.width, htmlCanvas.height);
+        }
+      });
+    }
+  });
+
+  // ==========================================
+  // 2. 모달 플레이어 및 인터랙션 기능
+  // ==========================================
   const cards = document.querySelectorAll('.video-card');
   const modal = document.getElementById('videoModal');
   const backdrop = document.querySelector('.modal-backdrop');
@@ -121,7 +154,7 @@ const videoList = [
   const muteBtn = document.getElementById('muteBtn');
   const speedSelect = document.getElementById('speedSelect') as HTMLSelectElement;
 
-  // 1. 카드를 클릭하면 영상 모달 창 열기
+  // 카드를 클릭하면 영상 모달 창 열기
   cards.forEach(card => {
     card.addEventListener('click', () => {
       const src = card.getAttribute('data-video-src');
@@ -137,7 +170,7 @@ const videoList = [
     });
   });
 
-  // 2. 모달 닫기 기능
+  // 모달 닫기
   function closeModal() {
     if (modal && player) {
       player.pause();
@@ -149,7 +182,7 @@ const videoList = [
   closeBtn?.addEventListener('click', closeModal);
   backdrop?.addEventListener('click', closeModal);
 
-  // 3. 재생 / 일시정지
+  // 재생 / 일시정지
   playPauseBtn?.addEventListener('click', () => {
     if (player.paused) {
       player.play();
@@ -160,23 +193,23 @@ const videoList = [
     }
   });
 
-  // 4. 10초 스킵 기능
+  // 스킵
   skipBackBtn?.addEventListener('click', () => player.currentTime -= 10);
   skipForwardBtn?.addEventListener('click', () => player.currentTime += 10);
 
-  // 5. 무음 (음소거) 기능
+  // 음소거
   muteBtn?.addEventListener('click', () => {
     player.muted = !player.muted;
     muteBtn.textContent = player.muted ? '🔇' : '🔊';
   });
 
-  // 6. 배속 조절 기능
+  // 배속
   speedSelect?.addEventListener('change', (e) => {
     const target = e.target as HTMLSelectElement;
     player.playbackRate = parseFloat(target.value);
   });
 
-  // 7. 재생 바(SeekBar) 동기화
+  // 재생 바 동기화
   player?.addEventListener('timeupdate', () => {
     if (seekBar && player.duration) {
       seekBar.value = ((player.currentTime / player.duration) * 100).toString();
@@ -191,7 +224,6 @@ const videoList = [
 </script>
 
 <style>
-  /* 기본 레이아웃 & 테마 (다크 모드 스타일) */
   :global(body) {
     background-color: #0f0f0f;
     color: #ffffff;
@@ -220,7 +252,6 @@ const videoList = [
     margin: 0;
   }
 
-  /* 비디오 그리드 UI (유튜브 스타일) */
   .video-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -244,20 +275,20 @@ const videoList = [
     position: relative;
     width: 100%;
     aspect-ratio: 16 / 9;
-    background: #2a2a2a;
+    background: #111;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
   }
-  .thumbnail {
+  
+  /* 캔버스가 썸네일 영역을 가득 채우도록 설정 */
+  .thumbnail-canvas {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-  .thumbnail-placeholder {
-    color: #666;
-    font-weight: bold;
-  }
+
   .play-overlay {
     position: absolute;
     font-size: 2rem;
@@ -289,7 +320,7 @@ const videoList = [
     font-size: 0.75rem;
   }
 
-  /* 모달 플레이어 창 */
+  /* 모달 레이아웃 */
   .modal {
     position: fixed;
     top: 0;
@@ -331,7 +362,6 @@ const videoList = [
     cursor: pointer;
   }
 
-  /* 커스텀 플레이어 및 컨트롤 */
   .player-wrapper {
     margin-top: 1rem;
     background: #000;
