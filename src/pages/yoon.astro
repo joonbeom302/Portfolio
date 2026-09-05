@@ -1,0 +1,400 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// 🎬 재생할 영상 목록 데이터
+// public/ 폴더 기준으로 경로를 작성합니다.
+const videoList = [
+  {
+    id: 1,
+    title: "Tiki Tiki",
+    description: "윤서준 x Tiki Tiki baby dance",
+    videoUrl: "/videos/tiki.mp4", // public/videos/video1.mp4 파일 경로
+    thumbnail: "",//"/thumbnails/thumb1.jpg", // public/thumbnails/thumb1.jpg (생략 시 기본 배경)
+    date: "2026-09-05"
+  },
+  {
+    id: 2,
+    title: "망치춤",
+    description: "윤서준 x 망치춤",
+    videoUrl: "/videos/hammer.mp4",
+    thumbnail: "",
+    date: "2026-09-04"
+  },
+  {
+    id: 3,
+    title: "ATEEZ - BAD 1",
+    description: "윤서준 x ATEEZ - BAD",
+    videoUrl: "/videos/bad1.mp4",
+    thumbnail: "",
+    date: "2026-09-03"
+  },
+  {
+    id: 4,
+    title: "ATEEZ - BAD 2",
+    description: "윤서준 x ATEEZ - BAD",
+    videoUrl: "/videos/bad2.mp4",
+    thumbnail: "",
+    date: "2026-09-02"
+  }
+];
+---
+
+<Layout title="윤서준 모음집">
+  <main class="container">
+    <!-- ⬅️ 로비로 돌아가기 버튼 -->
+    <nav class="top-nav">
+      <a href="/" class="back-btn">← 메인으로 이동</a>
+    </nav>
+
+    <header class="header">
+      <h1>🎬 윤서준 모음집</h1>
+      <p>윤서준 화려하고 트렌디한 댄스 실력을 한 곳에서 감상하세요!</p>
+    </header><section class="video-grid">
+      {videoList.map((video) => (
+        <article class="video-card" data-video-src={video.videoUrl} data-title={video.title}>
+          <div class="thumbnail-wrapper">
+            <canvas class="thumbnail-canvas" data-video-src={video.videoUrl}></canvas>
+            <span class="play-overlay">▶</span>
+          </div>
+          <div class="video-info">
+            <h3>{video.title}</h3>
+            <p>{video.description}</p>
+            <span class="date">{video.date}</span>
+          </div>
+        </article>
+      ))}
+    </section>
+
+    <!-- 🎥 영상 플레이어 모달 -->
+    <div id="videoModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <button id="closeBtn" class="close-btn">&times;</button>
+        <h2 id="modalTitle">영상 제목</h2>
+
+        <div class="player-wrapper">
+          <video id="mainPlayer" preload="metadata"></video>
+          
+          <div class="controls">
+            <button id="playPauseBtn" class="ctrl-btn">▶</button>
+            <button id="skipBackBtn" class="ctrl-btn">-10초</button>
+            <button id="skipForwardBtn" class="ctrl-btn">+10초</button>
+            
+            <input type="range" id="seekBar" value="0" min="0" max="100" class="seek-bar" />
+            
+            <button id="muteBtn" class="ctrl-btn">🔊</button>
+            
+            <select id="speedSelect" class="ctrl-select">
+              <option value="0.5">0.5x</option>
+              <option value="1.0" selected>1.0x (보통)</option>
+              <option value="1.25">1.25x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2.0">2.0x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  // 1. 썸네일 자동 캡쳐
+  const canvases = document.querySelectorAll('.thumbnail-canvas');
+  canvases.forEach((canvas) => {
+    const htmlCanvas = canvas as HTMLCanvasElement;
+    const videoSrc = htmlCanvas.getAttribute('data-video-src');
+
+    if (videoSrc) {
+      const tempVideo = document.createElement('video');
+      tempVideo.src = videoSrc;
+      tempVideo.crossOrigin = 'anonymous';
+      tempVideo.preload = 'metadata';
+
+      tempVideo.addEventListener('loadedmetadata', () => {
+        const captureTime = tempVideo.duration > 2 ? 2 : tempVideo.duration / 2;
+        tempVideo.currentTime = captureTime;
+      });
+
+      tempVideo.addEventListener('seeked', () => {
+        const ctx = htmlCanvas.getContext('2d');
+        if (ctx) {
+          htmlCanvas.width = tempVideo.videoWidth || 320;
+          htmlCanvas.height = tempVideo.videoHeight || 180;
+          ctx.drawImage(tempVideo, 0, 0, htmlCanvas.width, htmlCanvas.height);
+        }
+      });
+    }
+  });
+
+  // 2. 모달 플레이어 로직
+  const cards = document.querySelectorAll('.video-card');
+  const modal = document.getElementById('videoModal');
+  const backdrop = document.querySelector('.modal-backdrop');
+  const closeBtn = document.getElementById('closeBtn');
+  const modalTitle = document.getElementById('modalTitle');
+  
+  const player = document.getElementById('mainPlayer') as HTMLVideoElement;
+  const playPauseBtn = document.getElementById('playPauseBtn');
+  const skipBackBtn = document.getElementById('skipBackBtn');
+  const skipForwardBtn = document.getElementById('skipForwardBtn');
+  const seekBar = document.getElementById('seekBar') as HTMLInputElement;
+  const muteBtn = document.getElementById('muteBtn');
+  const speedSelect = document.getElementById('speedSelect') as HTMLSelectElement;
+
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      const src = card.getAttribute('data-video-src');
+      const title = card.getAttribute('data-title');
+
+      if (src && player && modalTitle && modal) {
+        player.src = src;
+        modalTitle.textContent = title || '영상 재생';
+        modal.classList.remove('hidden');
+        player.play();
+        if (playPauseBtn) playPauseBtn.textContent = '⏸';
+      }
+    });
+  });
+
+  function closeModal() {
+    if (modal && player) {
+      player.pause();
+      player.src = '';
+      modal.classList.add('hidden');
+    }
+  }
+
+  closeBtn?.addEventListener('click', closeModal);
+  backdrop?.addEventListener('click', closeModal);
+
+  playPauseBtn?.addEventListener('click', () => {
+    if (player.paused) {
+      player.play();
+      playPauseBtn.textContent = '⏸';
+    } else {
+      player.pause();
+      playPauseBtn.textContent = '▶';
+    }
+  });
+
+  skipBackBtn?.addEventListener('click', () => player.currentTime -= 10);
+  skipForwardBtn?.addEventListener('click', () => player.currentTime += 10);
+
+  muteBtn?.addEventListener('click', () => {
+    player.muted = !player.muted;
+    muteBtn.textContent = player.muted ? '🔇' : '🔊';
+  });
+
+  speedSelect?.addEventListener('change', (e) => {
+    const target = e.target as HTMLSelectElement;
+    player.playbackRate = parseFloat(target.value);
+  });
+
+  player?.addEventListener('timeupdate', () => {
+    if (seekBar && player.duration) {
+      seekBar.value = ((player.currentTime / player.duration) * 100).toString();
+    }
+  });
+
+  seekBar?.addEventListener('input', () => {
+    if (player && player.duration) {
+      player.currentTime = (parseFloat(seekBar.value) / 100) * player.duration;
+    }
+  });
+</script>
+
+<style>
+  /* yoon.astro 페이지 전용 독립된 다크/레드/블루 테마 CSS */
+  :global(body) {
+    background-color: #0f0f0f;
+    color: #ffffff;
+    font-family: 'Pretendard', system-ui, sans-serif;
+    margin: 0;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+  }
+
+  .top-nav {
+    margin-bottom: 1.5rem;
+  }
+  .back-btn {
+    color: #9ca3af;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: color 0.2s;
+  }
+  .back-btn:hover {
+    color: #3b82f6;
+  }
+
+  .header {
+    margin-bottom: 2.5rem;
+    border-bottom: 1px solid #272727;
+    padding-bottom: 1rem;
+  }
+  .header h1 {
+    font-size: 2rem;
+    color: #3b82f6;
+    margin: 0 0 0.5rem 0;
+  }
+  .header p {
+    color: #aaa;
+    margin: 0;
+  }
+
+  .video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .video-card {
+    background: #181818;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.2s;
+    border: 1px solid #272727;
+  }
+  .video-card:hover {
+    transform: translateY(-4px);
+    background: #222222;
+  }
+
+  .thumbnail-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .thumbnail-canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .play-overlay {
+    position: absolute;
+    font-size: 2rem;
+    color: white;
+    opacity: 0;
+    transition: opacity 0.2s;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 0.8rem 1.2rem;
+    border-radius: 50%;
+  }
+  .video-card:hover .play-overlay {
+    opacity: 1;
+  }
+
+  .video-info {
+    padding: 1rem;
+  }
+  .video-info h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+  }
+  .video-info p {
+    color: #aaa;
+    font-size: 0.875rem;
+    margin: 0 0 0.5rem 0;
+  }
+  .video-info .date {
+    color: #666;
+    font-size: 0.75rem;
+  }
+
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal.hidden {
+    display: none;
+  }
+  .modal-backdrop {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+  }
+  .modal-content {
+    position: relative;
+    background: #1f1f1f;
+    width: 90%;
+    max-width: 800px;
+    border-radius: 12px;
+    padding: 1.5rem;
+    z-index: 1001;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  }
+  .close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+  }
+
+  .player-wrapper {
+    margin-top: 1rem;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  video {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    display: block;
+  }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #111;
+  }
+  .ctrl-btn {
+    background: #333;
+    color: white;
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .ctrl-btn:hover {
+    background: #444;
+  }
+  .seek-bar {
+    flex-grow: 1;
+    cursor: pointer;
+  }
+  .ctrl-select {
+    background: #333;
+    color: white;
+    border: none;
+    padding: 0.4rem;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+</style>

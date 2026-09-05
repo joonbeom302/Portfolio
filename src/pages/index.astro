@@ -1,407 +1,149 @@
 ---
 import Layout from '../layouts/Layout.astro';
 
-// 🎬 재생할 영상 목록 데이터
-// public/ 폴더 기준으로 경로를 작성합니다.
-const videoList = [
+// 로비에서 연결할 세부 웹사이트 / 서비스 목록
+const sites = [
   {
-    id: 1,
-    title: "Tiki Tiki",
-    description: "윤서준 x Tiki Tiki baby dance",
-    videoUrl: "/videos/tiki.mp4", // public/videos/video1.mp4 파일 경로
-    thumbnail: "",//"/thumbnails/thumb1.jpg", // public/thumbnails/thumb1.jpg (생략 시 기본 배경)
-    date: "2026-09-05"
+    title: "🎬 윤서준 모음집",
+    description: "윤서준의 주요 영상들을 모아놓은 영상 플레이어 사이트입니다.",
+    path: "/yoon",
+    badge: "비디오",
+    color: "#3b82f6"
   },
   {
-    id: 2,
-    title: "망치춤",
-    description: "윤서준 x 망치춤",
-    videoUrl: "/videos/hammer.mp4",
-    thumbnail: "",
-    date: "2026-09-04"
-  },
-  {
-    id: 3,
-    title: "ATEEZ - BAD 1",
-    description: "윤서준 x ATEEZ - BAD",
-    videoUrl: "/videos/bad1.mp4",
-    thumbnail: "",
-    date: "2026-09-03"
-  },
-  {
-    id: 4,
-    title: "ATEEZ - BAD 2",
-    description: "윤서준 x ATEEZ - BAD",
-    videoUrl: "/videos/bad2.mp4",
-    thumbnail: "",
-    date: "2026-09-02"
+    title: "🎲 주사위 리듬게임 (모바일)",
+    description: "모바일로 즐기는 원핸드 주사위 리듬게임입니다.",
+    path: "/dice",
+    badge: "리듬게임",
+    color: "#10b981"
   }
 ];
 ---
 
-<Layout title="윤서준 모음집">
-  <main class="container">
-    <!-- 헤더 영역 -->
-    <header class="header">
-      <h1>🎬 윤서준 모음집</h1>
-      <p>윤서준 화려하고 트렌디한 댄스 실력을 한 곳에서 감상하세요!</p>
+<Layout title="Trigger302">
+  <main class="lobby-container">
+    <header class="lobby-header">
+      <span class="sub-title">WEB SERVICE HUB</span>
+      <h1>Trigger302</h1>
+      <p>아래 카드 중 하나를 선택하여 세부 웹사이트로 이동하세요.</p>
     </header>
-<!-- 영상 카드가 렌더링되는 비디오 그리드 -->
-    <section class="video-grid">
-      {videoList.map((video) => (
-        <article class="video-card" data-video-src={video.videoUrl} data-title={video.title}>
-          <div class="thumbnail-wrapper">
-            <!-- 캔버스: 영상의 특정 프레임을 캡쳐해서 이미지로 그려주는 영역 -->
-            <canvas class="thumbnail-canvas" data-video-src={video.videoUrl}></canvas>
-            <span class="play-overlay">▶</span>
+
+    <section class="card-grid">
+      {sites.map((site) => (
+        <a href={site.path} class="site-card" style={`--accent-color: ${site.color}`}>
+          <div class="card-header">
+            <span class="badge">{site.badge}</span>
+            <span class="arrow">→</span>
           </div>
-          <div class="video-info">
-            <h3>{video.title}</h3>
-            <p>{video.description}</p>
-            <span class="date">{video.date}</span>
-          </div>
-        </article>
+          <h2>{site.title}</h2>
+          <p>{site.description}</p>
+        </a>
       ))}
     </section>
-
-    <!-- 🎥 영상 플레이어 모달 (팝업창) -->
-    <div id="videoModal" class="modal hidden">
-      <div class="modal-backdrop"></div>
-      <div class="modal-content">
-        <button id="closeBtn" class="close-btn">&times;</button>
-        <h2 id="modalTitle">영상 제목</h2>
-
-        <!-- HTML5 Video Player -->
-        <div class="player-wrapper">
-          <video id="mainPlayer" preload="metadata"></video>
-          
-          <!-- 커스텀 플레이어 컨트롤러 -->
-          <div class="controls">
-            <button id="playPauseBtn" class="ctrl-btn">▶</button>
-            <button id="skipBackBtn" class="ctrl-btn">-10초</button>
-            <button id="skipForwardBtn" class="ctrl-btn">+10초</button>
-            
-            <input type="range" id="seekBar" value="0" min="0" max="100" class="seek-bar" />
-            
-            <button id="muteBtn" class="ctrl-btn">🔊</button>
-            
-            <!-- 배속 선택 -->
-            <select id="speedSelect" class="ctrl-select">
-              <option value="0.5">0.5x</option>
-              <option value="1.0" selected>1.0x (보통)</option>
-              <option value="1.25">1.25x</option>
-              <option value="1.5">1.5x</option>
-              <option value="2.0">2.0x</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
   </main>
 </Layout>
 
-<!-- 클라이언트 사이드 스크립트 -->
-<script>
-  // ==========================================
-  // 1. 영상 중간 프레임 자동 캡쳐 (썸네일 생성)
-  // ==========================================
-  const canvases = document.querySelectorAll('.thumbnail-canvas');
-
-  canvases.forEach((canvas) => {
-    const htmlCanvas = canvas as HTMLCanvasElement;
-    const videoSrc = htmlCanvas.getAttribute('data-video-src');
-
-    if (videoSrc) {
-      // 비가시적 임시 비디오 객체 생성
-      const tempVideo = document.createElement('video');
-      tempVideo.src = videoSrc;
-      tempVideo.crossOrigin = 'anonymous'; // CORS 방지
-      tempVideo.preload = 'metadata';
-
-      // 비디오 메타데이터 로드 완료 시
-      tempVideo.addEventListener('loadedmetadata', () => {
-        // 영상 길이의 중간 지점 계산 (예: 전체 10초면 5초 지점, 기본 2초 지점)
-        const captureTime = tempVideo.duration > 2 ? 2 : tempVideo.duration / 2;
-        tempVideo.currentTime = captureTime;
-      });
-
-      // 계산된 시간대의 프레임이 준비되었을 때 Canvas에 그리기
-      tempVideo.addEventListener('seeked', () => {
-        const ctx = htmlCanvas.getContext('2d');
-        if (ctx) {
-          htmlCanvas.width = tempVideo.videoWidth || 320;
-          htmlCanvas.height = tempVideo.videoHeight || 180;
-          ctx.drawImage(tempVideo, 0, 0, htmlCanvas.width, htmlCanvas.height);
-        }
-      });
-    }
-  });
-
-  // ==========================================
-  // 2. 모달 플레이어 및 인터랙션 기능
-  // ==========================================
-  const cards = document.querySelectorAll('.video-card');
-  const modal = document.getElementById('videoModal');
-  const backdrop = document.querySelector('.modal-backdrop');
-  const closeBtn = document.getElementById('closeBtn');
-  const modalTitle = document.getElementById('modalTitle');
-  
-  const player = document.getElementById('mainPlayer') as HTMLVideoElement;
-  const playPauseBtn = document.getElementById('playPauseBtn');
-  const skipBackBtn = document.getElementById('skipBackBtn');
-  const skipForwardBtn = document.getElementById('skipForwardBtn');
-  const seekBar = document.getElementById('seekBar') as HTMLInputElement;
-  const muteBtn = document.getElementById('muteBtn');
-  const speedSelect = document.getElementById('speedSelect') as HTMLSelectElement;
-
-  // 카드를 클릭하면 영상 모달 창 열기
-  cards.forEach(card => {
-    card.addEventListener('click', () => {
-      const src = card.getAttribute('data-video-src');
-      const title = card.getAttribute('data-title');
-
-      if (src && player && modalTitle && modal) {
-        player.src = src;
-        modalTitle.textContent = title || '영상 재생';
-        modal.classList.remove('hidden');
-        player.play();
-        if (playPauseBtn) playPauseBtn.textContent = '⏸';
-      }
-    });
-  });
-
-  // 모달 닫기
-  function closeModal() {
-    if (modal && player) {
-      player.pause();
-      player.src = '';
-      modal.classList.add('hidden');
-    }
-  }
-
-  closeBtn?.addEventListener('click', closeModal);
-  backdrop?.addEventListener('click', closeModal);
-
-  // 재생 / 일시정지
-  playPauseBtn?.addEventListener('click', () => {
-    if (player.paused) {
-      player.play();
-      playPauseBtn.textContent = '⏸';
-    } else {
-      player.pause();
-      playPauseBtn.textContent = '▶';
-    }
-  });
-
-  // 스킵
-  skipBackBtn?.addEventListener('click', () => player.currentTime -= 10);
-  skipForwardBtn?.addEventListener('click', () => player.currentTime += 10);
-
-  // 음소거
-  muteBtn?.addEventListener('click', () => {
-    player.muted = !player.muted;
-    muteBtn.textContent = player.muted ? '🔇' : '🔊';
-  });
-
-  // 배속
-  speedSelect?.addEventListener('change', (e) => {
-    const target = e.target as HTMLSelectElement;
-    player.playbackRate = parseFloat(target.value);
-  });
-
-  // 재생 바 동기화
-  player?.addEventListener('timeupdate', () => {
-    if (seekBar && player.duration) {
-      seekBar.value = ((player.currentTime / player.duration) * 100).toString();
-    }
-  });
-
-  seekBar?.addEventListener('input', () => {
-    if (player && player.duration) {
-      player.currentTime = (parseFloat(seekBar.value) / 100) * player.duration;
-    }
-  });
-</script>
-
 <style>
+  /* 로비 전용 고유 CSS 스타일 */
   :global(body) {
-    background-color: #0f0f0f;
-    color: #ffffff;
+    background-color: #0b0f19;
+    color: #f3f4f6;
     font-family: 'Pretendard', system-ui, sans-serif;
     margin: 0;
   }
 
-  .container {
-    max-width: 1100px;
+  .lobby-container {
+    max-width: 900px;
     margin: 0 auto;
-    padding: 2rem 1rem;
+    padding: 4rem 1.5rem;
   }
 
-  .header {
-    margin-bottom: 2.5rem;
-    border-bottom: 1px solid #272727;
-    padding-bottom: 1rem;
-  }
-  .header h1 {
-    font-size: 2rem;
-    color: #f63b5a;
-    margin: 0 0 0.5rem 0;
-  }
-  .header p {
-    color: #aaa;
-    margin: 0;
+  .lobby-header {
+    text-align: center;
+    margin-bottom: 3.5rem;
   }
 
-  .video-grid {
+  .sub-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #60a5fa;
+  }
+
+  .lobby-header h1 {
+    font-size: 2.8rem;
+    margin: 0.5rem 0 1rem 0;
+    background: linear-gradient(to right, #ffffff, #9ca3af);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .lobby-header p {
+    color: #9ca3af;
+    font-size: 1.1rem;
+  }
+
+  /* 카드 그리드 */
+  .card-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 1.5rem;
   }
 
-  .video-card {
-    background: #181818;
-    border-radius: 12px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.2s, background-color 0.2s;
-    border: 1px solid #272727;
-  }
-  .video-card:hover {
-    transform: translateY(-4px);
-    background: #222222;
-  }
-
-  .thumbnail-wrapper {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    background: #111;
+  .site-card {
+    background: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 16px;
+    padding: 1.8rem;
+    text-decoration: none;
+    color: inherit;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-  }
-  
-  /* 캔버스가 썸네일 영역을 가득 채우도록 설정 */
-  .thumbnail-canvas {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    flex-direction: column;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
   }
 
-  .play-overlay {
-    position: absolute;
-    font-size: 2rem;
-    color: white;
-    opacity: 0;
-    transition: opacity 0.2s;
-    background: rgba(0, 0, 0, 0.6);
-    padding: 0.8rem 1.2rem;
-    border-radius: 50%;
-  }
-  .video-card:hover .play-overlay {
-    opacity: 1;
+  .site-card:hover {
+    transform: translateY(-6px);
+    border-color: var(--accent-color);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
   }
 
-  .video-info {
-    padding: 1rem;
-  }
-  .video-info h3 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.1rem;
-  }
-  .video-info p {
-    color: #aaa;
-    font-size: 0.875rem;
-    margin: 0 0 0.5rem 0;
-  }
-  .video-info .date {
-    color: #666;
-    font-size: 0.75rem;
-  }
-
-  /* 모달 레이아웃 */
-  .modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+  .card-header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  }
-  .modal.hidden {
-    display: none;
-  }
-  .modal-backdrop {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-  }
-  .modal-content {
-    position: relative;
-    background: #1f1f1f;
-    width: 90%;
-    max-width: 800px;
-    border-radius: 12px;
-    padding: 1.5rem;
-    z-index: 1001;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-  }
-  .close-btn {
-    position: absolute;
-    top: 1rem;
-    right: 1.5rem;
-    background: none;
-    border: none;
-    color: white;
-    font-size: 2rem;
-    cursor: pointer;
+    margin-bottom: 1.2rem;
   }
 
-  .player-wrapper {
-    margin-top: 1rem;
-    background: #000;
-    border-radius: 8px;
-    overflow: hidden;
+  .badge {
+    background: #1f2937;
+    color: var(--accent-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 0.3rem 0.7rem;
+    border-radius: 20px;
   }
-  video {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    display: block;
+
+  .arrow {
+    font-size: 1.2rem;
+    color: #4b5563;
+    transition: transform 0.2s, color 0.2s;
   }
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    background: #111;
+
+  .site-card:hover .arrow {
+    transform: translateX(4px);
+    color: var(--accent-color);
   }
-  .ctrl-btn {
-    background: #333;
-    color: white;
-    border: none;
-    padding: 0.4rem 0.8rem;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.85rem;
+
+  .site-card h2 {
+    font-size: 1.4rem;
+    margin: 0 0 0.8rem 0;
   }
-  .ctrl-btn:hover {
-    background: #444;
-  }
-  .seek-bar {
-    flex-grow: 1;
-    cursor: pointer;
-  }
-  .ctrl-select {
-    background: #333;
-    color: white;
-    border: none;
-    padding: 0.4rem;
-    border-radius: 6px;
-    cursor: pointer;
+
+  .site-card p {
+    color: #9ca3af;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 0;
   }
 </style>
