@@ -1,359 +1,213 @@
 ---
-// src/components/FlySimulator.astro
 ---
-
 <div class="simulator-container">
-  <!-- 1. 3D 공간 뷰어 영역 -->
+  <!-- 3D 공간 뷰어 영역 (전체 화면) -->
   <div class="viewer-section">
     <canvas id="three-canvas"></canvas>
-    <div class="overlay-info">
-      <span>🖱️ 드래그: 카메라 회전 | Wheel: 줌</span>
-    </div>
   </div>
 
-  <!-- 2. 우측/하단 대시보드 (신경망 시각화 + 설명) -->
+  <!-- 우측 상단 오버레이 대시보드 (신경망 시각화) -->
   <div class="dashboard-section">
-    <!-- 신경망 모형 영역 -->
     <div class="neural-box">
-      <h3>초파리 뇌 신경망 (Fly Brain Network)</h3>
+      <h3>Neural Activity</h3>
+      <p class="neuron-count">Simulated Point Cloud Brain</p>
       <div class="canvas-wrapper">
-        <canvas id="neural-canvas" width="300" height="150"></canvas>
+        <canvas id="neural-canvas" width="300" height="400"></canvas>
       </div>
       <div class="status-indicator">
-        현재 활성화 상태: <span id="active-state">대기 중 (Resting)</span>
+        상태: <span id="active-state">Resting (직선 비행)</span>
       </div>
-    </div>
-
-    <!-- 프로젝트 설명 영역 -->
-    <div class="description-box">
-      <h3>프로젝트 설명</h3>
-      <p>
-        이 시뮬레이터는 최근 오픈소스로 공개된 <strong>성체 초파리 커넥톰(FlyWire)</strong> 데이터의 시각-운동 반사 회로 메커니즘을 간소화하여 웹 WebGL 환경에 재현한 3D 시뮬레이션입니다.
-      </p>
-      <ul>
-        <li><strong>시각 신경 (Visual Neuron):</strong> 공간 내 장애물 및 벽과의 거리를 실시간으로 감지합니다.</li>
-        <li><strong>중앙 처리 회로 (Central Complex):</strong> 감지된 거리 신호에 따라 비행 회전각 및 가속도를 계산합니다.</li>
-        <li><strong>운동 뉴런 (Motor Neuron):</strong> 날개 짓과 비행 방향 전환을 명령합니다.</li>
-      </ul>
     </div>
   </div>
 </div>
-
+<!-- 
 <script>
   import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-  // --- DOM 요소 타입 캐스팅 및 null 체크 ---
   const canvas = document.getElementById('three-canvas') as HTMLCanvasElement | null;
-  const viewerSection = document.querySelector('.viewer-section') as HTMLElement | null;
   const neuralCanvas = document.getElementById('neural-canvas') as HTMLCanvasElement | null;
   const activeStateEl = document.getElementById('active-state') as HTMLElement | null;
 
-  if (canvas && viewerSection && neuralCanvas && activeStateEl) {
+  if (canvas && neuralCanvas && activeStateEl) {
     const nCtx = neuralCanvas.getContext('2d');
 
     if (nCtx) {
-      // --- 1. Three.js 3D 뷰어 셋업 ---
+      // --- 1. Three.js 뷰어 (전체 화면 & 컨트롤 추가) ---
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x0f172a); // 슬레이트 블루 톤 배경
+      scene.background = new THREE.Color(0x1a202c);
+      scene.fog = new THREE.Fog(0x1a202c, 10, 40);
 
-      // 격자(Grid) 및 바운딩 박스 생성 (초파리가 날아다닐 3D 방)
-      const roomSize = 10;
-      const gridHelper = new THREE.GridHelper(roomSize, 10, 0x38bdf8, 0x1e293b);
+      const roomSize = 20;
+      const gridHelper = new THREE.GridHelper(roomSize, 20, 0x4a5568, 0x2d3748);
       gridHelper.position.y = -roomSize / 2;
       scene.add(gridHelper);
 
-      const roomGeo = new THREE.BoxGeometry(roomSize, roomSize, roomSize);
-      const roomEdges = new THREE.EdgesGeometry(roomGeo);
-      const roomLine = new THREE.LineSegments(roomEdges, new THREE.LineBasicMaterial({ color: 0x334155 }));
-      scene.add(roomLine);
-
-      // 조명 설정
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
       scene.add(ambientLight);
-      const dirLight = new THREE.DirectionalLight(0x38bdf8, 1);
-      dirLight.position.set(5, 10, 7);
-      scene.add(dirLight);
 
-      // 카메라 설정
-      const camera = new THREE.PerspectiveCamera(60, viewerSection.clientWidth / viewerSection.clientHeight, 0.1, 100);
-      camera.position.set(0, 3, 12);
-      camera.lookAt(0, 0, 0);
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+      camera.position.set(0, 5, 15);
 
-      // 렌더러 설정
       const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-      renderer.setSize(viewerSection.clientWidth, viewerSection.clientHeight);
+      renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-      // --- 2. 초파리 3D 메쉬 및 물리 시뮬레이션 ---
+      // 드래그 회전 컨트롤 추가
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+
+      // --- 2. 초파리 모델 (임시 형태, 추후 GLB로 교체 권장) ---
       const flyGroup = new THREE.Group();
-
-      // 몸통
-      const bodyGeo = new THREE.SphereGeometry(0.3, 16, 16);
-      bodyGeo.scale(1, 1, 1.5);
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.4 });
-      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1 });
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 16, 16), bodyMat);
+      body.scale.set(1, 1, 1.5);
       flyGroup.add(body);
-
-      // 빨간 눈
-      const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8);
-      const eyeMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
-      const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
-      eyeL.position.set(-0.18, 0.1, 0.3);
-      const eyeR = eyeL.clone();
-      eyeR.position.x = 0.18;
-      flyGroup.add(eyeL);
-      flyGroup.add(eyeR);
-
-      // 날개 (좌/우)
-      const wingGeo = new THREE.PlaneGeometry(0.4, 0.8);
-      const wingMat = new THREE.MeshStandardMaterial({
-        color: 0xe2e8f0,
-        transparent: true,
-        opacity: 0.6,
-        side: THREE.DoubleSide
-      });
-      const wingL = new THREE.Mesh(wingGeo, wingMat);
-      wingL.position.set(-0.3, 0.1, 0);
-      wingL.rotation.x = Math.PI / 2;
-      const wingR = wingL.clone();
-      wingR.position.x = 0.3;
-
-      flyGroup.add(wingL);
-      flyGroup.add(wingR);
       scene.add(flyGroup);
 
-      // 초파리 이동 변수
+      // 초파리 비행 변수 (사카드 비행 로직)
       const pos = new THREE.Vector3(0, 0, 0);
-      const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05,
-        (Math.random() - 0.5) * 0.05
-      );
+      let direction = new THREE.Vector3(0, 0, -1);
+      const speed = 0.1;
+      let saccadeCooldown = 0;
 
-      // --- 3. 2D 신경망 Canvas 시각화 ---
-      const nodes = [
-        { id: 'visual', name: '시각', x: 50, y: 75 },
-        { id: 'central', name: '중앙', x: 150, y: 75 },
-        { id: 'motor', name: '운동', x: 250, y: 75 }
-      ];
+      // --- 3. 뇌 신경망 파티클 (점묘화 형태) 생성 ---
+      const brainParticles = [];
+      for (let i = 0; i < 2000; i++) {
+        // 임의의 뇌 형태(위쪽 양갈래, 아래쪽 꼬리)로 점 배치
+        const x = (Math.random() - 0.5) * 200;
+        const y = (Math.random() - 0.5) * 250;
+        let region = 'central';
+        
+        // 형태 잡기: 중심부에서 먼 곳은 확률적으로 제거
+        if (y < -50 && Math.abs(x) < 50) region = 'motor'; // 하단 신경 (운동)
+        else if (y > 0 && Math.abs(x) > 40) region = 'visual'; // 상단 양측 (시각)
+        
+        brainParticles.push({ x: 150 + x, y: 200 + y, region, baseAlpha: Math.random() * 0.3 + 0.1 });
+      }
 
-      const drawNeuralNetwork = (activeType: string) => {
+      const drawBrain = (activeType: string) => {
         nCtx.clearRect(0, 0, neuralCanvas.width, neuralCanvas.height);
+        
+        brainParticles.forEach(p => {
+          let alpha = p.baseAlpha;
+          let color = '255, 255, 255'; // 기본 흰색 점
 
-        // 기본 연결선
-        nCtx.beginPath();
-        nCtx.moveTo(nodes[0].x, nodes[0].y);
-        nCtx.lineTo(nodes[1].x, nodes[1].y);
-        nCtx.lineTo(nodes[2].x, nodes[2].y);
-        nCtx.strokeStyle = '#334155';
-        nCtx.lineWidth = 3;
-        nCtx.stroke();
+          // 상태에 따라 특정 구역의 파티클이 강하게 빛남
+          if (activeType === 'avoid' && (p.region === 'visual' || p.region === 'motor')) {
+            if (Math.random() > 0.7) { alpha = 0.9; color = '239, 68, 68'; } // 빨간색 점멸
+          } else if (activeType === 'saccade' && p.region === 'central') {
+            if (Math.random() > 0.7) { alpha = 0.9; color = '56, 189, 248'; } // 파란색 점멸
+          }
 
-        // 활성화 흐름선
-        if (activeType !== 'normal') {
-          nCtx.beginPath();
-          nCtx.moveTo(nodes[0].x, nodes[0].y);
-          nCtx.lineTo(nodes[1].x, nodes[1].y);
-          nCtx.lineTo(nodes[2].x, nodes[2].y);
-          nCtx.strokeStyle = activeType === 'wall' ? '#ef4444' : '#38bdf8';
-          nCtx.lineWidth = 3;
-          nCtx.stroke();
-        }
-
-        // 노드 그리기
-        nodes.forEach((node) => {
-          const isActive =
-            activeType === 'wall' ||
-            (activeType === 'turn' && (node.id === 'central' || node.id === 'motor'));
-
-          nCtx.beginPath();
-          nCtx.arc(node.x, node.y, 18, 0, Math.PI * 2);
-          nCtx.fillStyle = isActive ? (activeType === 'wall' ? '#ef4444' : '#38bdf8') : '#1e293b';
-          nCtx.fill();
-          nCtx.strokeStyle = isActive ? '#ffffff' : '#64748b';
-          nCtx.lineWidth = 2;
-          nCtx.stroke();
-
-          nCtx.fillStyle = '#ffffff';
-          nCtx.font = '12px sans-serif';
-          nCtx.textAlign = 'center';
-          nCtx.textBaseline = 'middle';
-          nCtx.fillText(node.name, node.x, node.y);
+          nCtx.fillStyle = `rgba(${color}, ${alpha})`;
+          nCtx.fillRect(p.x, p.y, 2, 2); // 픽셀 크기
         });
       };
 
-      // --- 4. 루프 및 비행 로직 ---
-      let wingAngle = 0;
-
+      // --- 4. 메인 애니메이션 루프 ---
       const animate = () => {
         requestAnimationFrame(animate);
+        controls.update();
 
-        // 1) 위치 업데이트
-        pos.add(vel);
-        flyGroup.position.copy(pos);
-
-        // 바라보는 방향 회전
-        if (vel.lengthSq() > 0.00001) {
-          const targetLook = pos.clone().add(vel);
-          flyGroup.lookAt(targetLook);
-        }
-
-        // 날개 짓 애니메이션
-        wingAngle += 0.4;
-        wingL.rotation.z = Math.sin(wingAngle) * 0.5;
-        wingR.rotation.z = -Math.sin(wingAngle) * 0.5;
-
-        // 2) 벽 충돌 검사 및 신경망 상태 갱신
-        const limit = roomSize / 2 - 0.5;
         let activeType = 'normal';
+        activeStateEl.innerText = 'Resting (직선 비행)';
+        activeStateEl.style.color = '#cbd5e1';
 
-        if (Math.abs(pos.x) > limit || Math.abs(pos.y) > limit || Math.abs(pos.z) > limit) {
-          // 벽 감지 -> 시각/운동 뉴런 긴급 회피
-          vel.negate().add(new THREE.Vector3((Math.random() - 0.5) * 0.02, (Math.random() - 0.5) * 0.02, (Math.random() - 0.5) * 0.02));
-          activeType = 'wall';
-          activeStateEl.innerText = '경고: 벽 감지 회피 중 (Visual-Motor Avoidance)';
+        // 전방 벽 감지 (Raycasting 대신 간단한 거리 측정)
+        const nextPos = pos.clone().add(direction.clone().multiplyScalar(speed * 20));
+        const limit = roomSize / 2 - 1;
+
+        if (Math.abs(nextPos.x) > limit || Math.abs(nextPos.y) > limit || Math.abs(nextPos.z) > limit) {
+          // 장애물 감지 시 부드럽게가 아니라 확 꺾음 (회피)
+          direction.x += (Math.random() - 0.5) * 2;
+          direction.y += (Math.random() - 0.5) * 2;
+          direction.z += (Math.random() - 0.5) * 2;
+          direction.normalize();
+          activeType = 'avoid';
+          activeStateEl.innerText = 'Optic Flow 감지: 긴급 회피';
           activeStateEl.style.color = '#ef4444';
-        } else if (Math.random() < 0.03) {
-          // 자발적 방향 전환
-          vel.x += (Math.random() - 0.5) * 0.02;
-          vel.y += (Math.random() - 0.5) * 0.02;
-          vel.z += (Math.random() - 0.5) * 0.02;
-          vel.clampLength(0.02, 0.06);
-          activeType = 'turn';
-          activeStateEl.innerText = '자율 방향 전환 (Central Complex Active)';
+          saccadeCooldown = 30; // 꺾은 후 잠시 직선 비행
+        } 
+        else if (saccadeCooldown <= 0 && Math.random() < 0.02) {
+          // 사카드(Saccade): 갑자기 휙 방향을 틈
+          direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * Math.PI);
+          activeType = 'saccade';
+          activeStateEl.innerText = 'Saccade (자율 방향 전환)';
           activeStateEl.style.color = '#38bdf8';
-        } else {
-          activeStateEl.innerText = '순항 비행 중 (Resting / Straight Line)';
-          activeStateEl.style.color = '#94a3b8';
+          saccadeCooldown = 50;
         }
 
-        drawNeuralNetwork(activeType);
+        if (saccadeCooldown > 0) saccadeCooldown--;
+
+        // 이동 및 회전 적용
+        pos.add(direction.clone().multiplyScalar(speed));
+        flyGroup.position.copy(pos);
+        
+        const targetLook = pos.clone().add(direction);
+        flyGroup.lookAt(targetLook);
+
+        drawBrain(activeType);
         renderer.render(scene, camera);
       };
 
       animate();
 
-      // --- 5. 반응형 리사이즈 처리 ---
+      // 리사이즈 처리
       window.addEventListener('resize', () => {
-        const width = viewerSection.clientWidth;
-        const height = viewerSection.clientHeight;
-
-        camera.aspect = width / height;
+        camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
+        renderer.setSize(window.innerWidth, window.innerHeight);
       });
     }
   }
-</script>
+</script> -->
 
 <style>
+  /* 화면 전체를 덮도록 수정 */
+  :global(body) { margin: 0; overflow: hidden; background-color: #1a202c; }
+  
   .simulator-container {
-    display: flex;
-    flex-direction: row;
-    width: 100%;
-    height: 80vh;
-    min-height: 500px;
-    background-color: #020617;
-    color: #f8fafc;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    position: relative;
+    width: 100vw;
+    height: 100vh;
   }
 
   .viewer-section {
-    position: relative;
-    width: 75%;
-    height: 100%;
-    background-color: #0f172a;
-  }
-
-  #three-canvas {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
-
-  .overlay-info {
     position: absolute;
-    bottom: 12px;
-    left: 12px;
-    background: rgba(15, 23, 42, 0.7);
-    backdrop-filter: blur(4px);
-    padding: 6px 12px;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    color: #94a3b8;
+    top: 0; left: 0; width: 100%; height: 100%;
   }
 
+  /* 첫 사진처럼 우측에 떠 있는 신경망 뷰어 */
   .dashboard-section {
-    width: 25%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    padding: 16px;
-    gap: 16px;
-    border-left: 1px solid #1e293b;
-    overflow-y: auto;
-    background-color: #090d16;
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 340px;
+    pointer-events: none; /* 마우스 이벤트는 뒤의 3D 화면으로 넘김 */
   }
 
-  .neural-box, .description-box {
-    background: #0f172a;
-    padding: 14px;
-    border-radius: 8px;
-    border: 1px solid #1e293b;
+  .neural-box {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #334155;
+    color: white;
   }
 
-  .neural-box h3, .description-box h3 {
-    margin-top: 0;
-    margin-bottom: 10px;
-    font-size: 0.95rem;
-    color: #38bdf8;
-  }
-
+  .neural-box h3 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+  .neuron-count { margin: 5px 0 15px 0; font-size: 0.8rem; color: #94a3b8; }
+  
   .canvas-wrapper {
     display: flex;
     justify-content: center;
-    background: #020617;
-    border-radius: 6px;
-    padding: 8px;
   }
 
   .status-indicator {
-    margin-top: 8px;
-    font-size: 0.8rem;
-    color: #cbd5e1;
-    text-align: center;
-  }
-
-  .description-box p, .description-box ul {
-    font-size: 0.82rem;
-    line-height: 1.5;
-    color: #94a3b8;
-    margin: 0;
-  }
-
-  .description-box ul {
-    padding-left: 16px;
-    margin-top: 8px;
-  }
-
-  @media (max-width: 768px) {
-    .simulator-container {
-      flex-direction: column;
-      height: auto;
-    }
-
-    .viewer-section {
-      width: 100%;
-      height: 50vh;
-    }
-
-    .dashboard-section {
-      width: 100%;
-      height: auto;
-      border-left: none;
-      border-top: 1px solid #1e293b;
-    }
+    margin-top: 15px;
+    font-size: 0.9rem;
+    font-weight: 500;
   }
 </style>
