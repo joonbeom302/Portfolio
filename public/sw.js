@@ -1,4 +1,4 @@
-const CACHE='blink-shell-v2';
+const CACHE='blink-shell-v3';
 const ASSETS=['/blink/','/blink/manifest.webmanifest','/blink/songs/neon-pulse.blink'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{const keys=await caches.keys();await Promise.all(keys.filter(key=>key.startsWith('blink-shell-')&&key!==CACHE).map(key=>caches.delete(key)));await self.clients.claim()})()));
